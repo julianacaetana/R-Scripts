@@ -53,27 +53,31 @@ dataset <- info$title
 
 url <- paste("http://api.bcb.gov.br/dados/serie/bcdata.sgs.",serie,"/dados?formato=csv",sep = "")
 
+########### SE QUISER IMPORTAR OS DATASETS PARA O R RODE O CODIGO ABAIXO, CUIDADO SÃO MAIS DE 3000 DATASETS #############
 ##extrai os dados em um dataset genérico
 temp.sgs <- read.table(url,sep = ";",dec = ",", stringsAsFactors = F,header = T)
 
 ##atribui ao dataset genérico o nome do conjunto 
 assign(dataset, temp.sgs)
+
+########### SE QUISER IMPORTAR OS DATASETS PARA O R RODE O CODIGO ACIMA, CUIDADO SÃO MAIS DE 3000 DATASETS #############
   },
 error=function(e){cat("ERROR :",conditionMessage(e), "\n")} ##mensagem de erro
 
 ) 
-##Caso queira fazer download para um arquivo csv utilize o código abaixo
+########## SE QUISER FAZER DOWNLOAD DOS DATASETS PARA UMA PASTA LOCAL RODE O CODIGO ABAIXO, CUIDADO SÃO MAIS DE 3000 DATASETS ##########
   
   #download.file(url,paste(###Coloque aqui o caminho para a pasta###,
-#  dataset,".csv",sep=""), mode = "wb")
-  
+#  str_replace_all(substr(dataset,1,195),"/","_"),".csv",sep=""), mode = "wb")
+ 
+ ########## SE QUISER FAZER DOWNLOAD DOS DATASETS PARA UMA PASTA LOCAL RODE O CODIGO ABAIXO, CUIDADO SÃO MAIS DE 3000 DATASETS ##########
 }
 
 
 ##Removendo as variáveis utilizadas no processo
 
 rm(lista.sgs,
-   lista.datasets,i,url,temp.sgs,dataset,serie)
+   lista.datasets,i,url,temp.sgs,dataset,serie,info)
 
 ```
 
