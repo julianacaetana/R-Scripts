@@ -41,12 +41,14 @@ rm(lista.datasets) ## removendo o dataframe que armazena todos datasets
 for (i in 1:nrow(lista.sgs)) {
    tryCatch({ ##tratamento de erros
    
-    serie <- str_extract(lista.sgs$dataset[i],"[0-9]+") ##extraindo o número da série
+      info <- fromJSON( readLines( paste("http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
+             lista.sgs$dataset[i],sep = "")))$result
+    serie <- info$codigo_sgs ##extraindo o número da série
+    
+    
     ##Extraindo e formatando o nome do conjunto
-dataset <-paste("s", str_to_upper(
-                    str_replace_all(
-                      lista.sgs$dataset[i],"[-]+","_")),
-                sep = "")
+dataset <- info$title
+
 ##montando a url para baixar os dados
 
 url <- paste("http://api.bcb.gov.br/dados/serie/bcdata.sgs.",serie,"/dados?formato=csv",sep = "")
