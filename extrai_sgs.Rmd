@@ -1,0 +1,77 @@
+---
+title: "Extração de Séries Temporais do Banco Central"
+output: html_notebook: 
+    theme: yeti
+---
+
+## Carregando as bibliotecas necessárias 
+
+```{r}
+library(rjson)
+library(dplyr)
+library(stringr)
+```
+
+##Gerando a lista de datasets
+
+```{r warning=FALSE}
+##Buscar os datasets disponiveis utilizando a API
+
+lista.datasets <-
+  as.data.frame(fromJSON(
+    readLines("http://dadosabertos.bcb.gov.br/api/action/package_list")
+  )$result, stringsAsFactors = F)
+names(lista.datasets) <- "dataset"
+
+## Definindo quais datasets são séries temporais
+lista.datasets <- bind_cols(lista.datasets,
+                            data.frame(sgs = str_detect(lista.datasets$dataset, "[0-9]-")))
+
+lista.sgs <-
+  filter(lista.datasets, lista.datasets$sgs == T) ##armazenando apenas os conjuntos que são séries temporais
+rm(lista.datasets) ## removendo o dataframe que armazena todos datasets
+
+```
+
+
+##Extraindo os dados
+
+```{r message=FALSE, warning=FALSE}
+##O for será executado uma vez para cada dataset encontrado no passo acima
+for (i in 1:nrow(lista.sgs)) {
+   tryCatch({ ##tratamento de erros
+   
+    serie <- str_extract(lista.sgs$dataset[i],"[0-9]+") ##extraindo o número da série
+    ##Extraindo e formatando o nome do conjunto
+dataset <-paste("s", str_to_upper(
+                    str_replace_all(
+                      lista.sgs$dataset[i],"[-]+","_")),
+                sep = "")
+##montando a url para baixar os dados
+
+url <- paste("http://api.bcb.gov.br/dados/serie/bcdata.sgs.",serie,"/dados?formato=csv",sep = "")
+
+##extrai os dados em um dataset genérico
+temp.sgs <- read.table(url,sep = ";",dec = ",", stringsAsFactors = F,header = T)
+
+##atribui ao dataset genérico o nome do conjunto 
+assign(dataset, temp.sgs)
+  },
+error=function(e){cat("ERROR :",conditionMessage(e), "\n")} ##mensagem de erro
+
+) 
+##Caso queira fazer download para um arquivo csv utilize o código abaixo
+  
+  #download.file(url,paste(###Coloque aqui o caminho para a pasta###,
+#  dataset,".csv",sep=""), mode = "wb")
+  
+}
+
+
+##Removendo as variáveis utilizadas no processo
+
+rm(lista.sgs,
+   lista.datasets,i,url,temp.sgs,dataset,serie)
+
+```
+
