@@ -1,0 +1,75 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+## Carregando as bibliotecas necessárias  
+
+```{r}
+library(rjson)
+library(dplyr)
+library(stringr)
+```
+
+
+```{r warning=FALSE}
+
+lista.datasets <-
+  as.data.frame(fromJSON(
+    readLines("http://dadosabertos.bcb.gov.br/api/action/package_list")
+  )$result, stringsAsFactors = F)
+names(lista.datasets) <- "dataset"
+
+
+```
+
+##
+
+```{r warning=FALSE}
+datasets <- data.frame()
+
+for (i in 3060:nrow(lista.datasets)) {
+
+info <- fromJSON( readLines( paste("http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
+             lista.datasets$dataset[i],sep = "")))$result
+ nomes <- distinct(as.data.frame(names(unlist(info$resources)),stringsAsFactors = F))$`names(unlist(info$resources))`
+ 
+
+  links <- data.frame(matrix( unlist(info$resources), nrow=info$num_resources, byrow=T ,dimnames = NULL, rownames.force = T ) ,stringsAsFactors=FALSE, check.rows = T, check.names = T)
+
+
+names(links) <- nomes
+
+
+
+dataset <- data.frame(dataset = info$title,
+           id = info$id,
+           dono = info$maintainer,
+           dono_email = if (is.null(info$maintainer_email) ) {"N/A"} else {info$maintainer_email},
+           autor = if (is.null(info$author) ) {"N/A"} else {info$author},
+           data_hora_criacao = if (is.null(info$metadata_created) ) {"N/A"} else {info$metadata_created} ,
+           data_hora_atualizacao = if (is.null(info$metadata_modified) ) {"N/A"} else {info$metadata_modified} ,
+           documentacao = if (is.null(info$documentacao) ) {"N/A"} else {info$documentacao},
+           codigo_sgs = if (is.null(info$codigo_sgs) ) {"N/A"} else {info$codigo_sgs} ,
+           status = if (is.null(info$state) ) {"N/A"} else {info$state} ,
+           data_inicial = if (is.null(info$inicio_periodo) ) {"N/A"} else {info$inicio_periodo} ,
+           data_final = if (is.null(info$fim_periodo) ) {"N/A"} else {info$fim_periodo},
+           unidade_medida = if (is.null(info$unidade_medida) ) {"N/A"} else {info$unidade_medida},
+           qtd_links = if (is.null(info$num_resources) ) {"N/A"} else {info$num_resources},
+           periodicidade = if (is.null(info$periodicidade) ) {"N/A"} else {info$periodicidade},
+           tipo_serie = if (is.null(info$tipo_serie) ) {"N/A"} else {info$tipo_serie},
+           url = if (is.null(info$url) ) {"N/A"} else {info$url},
+           descricao = t(data.frame(if (is.null(links$description) ) {"N/A"} else {links$description})),
+           formato = t(data.frame(if (is.null(links$format) ) {"N/A"} else {links$format})),
+           link = t(data.frame(if (is.null(links$url) ) {"N/A"} else {links$url})),
+           stringsAsFactors = F,
+           check.rows =  F
+           ,row.names = ""
+)
+datasets <- bind_rows(datasets,dataset)
+}
+
+
+
+```
+
