@@ -9,6 +9,8 @@ output: html_notebook
 library(rjson)
 library(dplyr)
 library(stringr)
+library(reshape2)
+library(xlsx)
 ```
 
 
@@ -28,19 +30,24 @@ names(lista.datasets) <- "dataset"
 ```{r warning=FALSE}
 datasets <- data.frame()
 
-for (i in 3060:nrow(lista.datasets)) {
+for (i in 1:nrow(lista.datasets)) {
 
 info <- fromJSON( readLines( paste("http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
-             lista.datasets$dataset[i],sep = "")))$result
- nomes <- distinct(as.data.frame(names(unlist(info$resources)),stringsAsFactors = F))$`names(unlist(info$resources))`
+             lista.datasets$dataset[i],sep = "") ))$result
+resources <- info$resources 
+links = data.frame()
+
+for (x in 1:length(info$resources)) {
+  
+  nomes <- distinct(as.data.frame( names(resources[[x]]),stringsAsFactors = F))[,1]
  
 
-  links <- data.frame(matrix( unlist(info$resources), nrow=info$num_resources, byrow=T ,dimnames = NULL, rownames.force = T ) ,stringsAsFactors=FALSE, check.rows = T, check.names = T)
+  temp <- data.frame(matrix( as.character(resources[[x]]), nrow=1, byrow=T ) ,stringsAsFactors=FALSE, check.rows = T, check.names = T)
+   names(temp) <- nomes
+   links <- bind_rows(links,temp)
 
-
-names(links) <- nomes
-
-
+}
+  
 
 dataset <- data.frame(dataset = info$title,
            id = info$id,
@@ -68,6 +75,35 @@ dataset <- data.frame(dataset = info$title,
 )
 datasets <- bind_rows(datasets,dataset)
 }
+
+rm(dataset,info,resources,nomes,x,i, temp,links,lista.datasets) ##removendo variáveis que não serão utilizadas daqui pra frente
+
+
+lista.dataset <- datasets[,1:17]  ##dataset com informações gerais dos datasets
+
+write.xlsx(lista.dataset, "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx", sheetName="Lista De Datasets", col.names=TRUE, row.names=F, append=F, showNA=F, password=NULL) ###Gravando em um xlsx
+
+####### lista com informações dos links disponiveis para cada dataset #######
+
+lista.links <- datasets[,c(2,18:length(datasets))] ##seleciona os campos
+
+
+lista.links <-  melt(lista.links, id.var = c("id")) ## transforma as colunas em linhas
+
+
+lista.links <-  bind_cols(lista.links, id_link = lista.links$variable)
+
+lista.links$variable <- str_remove(lista.links$variable,".[0-9]+") ##padroniza as variáveis
+teste <- reshape(lista.links,timevar="variable"
+                      ,idvar=c("id","id_link")
+                       ,direction="wide") ###separa as variaveis em colunas
+
+names(lista.links) <- str_remove_all( names(lista.links),"value.") ##renomeando as colunas
+
+
+##Gravando em um xlsx
+
+write.xlsx(lista.links, "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx", sheetName="Lista De Links", col.names=TRUE, row.names=F, append=T, showNA=TRUE, password=NULL)
 
 
 
