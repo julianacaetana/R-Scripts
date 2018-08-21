@@ -215,9 +215,9 @@ write.xlsx(
   col.names = TRUE,
   row.names = F,
   append = T,
-  showNA = F,
-  password = NULL
+  showNA = F
 )
+rm(datasets,lista.dataset)
 
 
 ```
