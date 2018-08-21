@@ -1,15 +1,16 @@
 ---
-title: "R Notebook"
+title: "Metadados"
 output: html_notebook
 ---
 
 ## Carregando as bibliotecas necessárias  
 
-```{r}
+```{r warning=FALSE}
 library(rjson)
 library(dplyr)
 library(stringr)
 library(reshape2)
+Sys.setenv(JAVA_HOME='C:/Program Files (x86)/Java/jre1.8.0_181') ##Tratando erro do java não encontrado
 library(xlsx)
 ```
 
@@ -168,7 +169,7 @@ lista.dataset <-
 
 write.xlsx(
   lista.dataset,
-  "PASTA ONDE O ARQUIVO SERÁ GRAVADO",
+  "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
   sheetName = "Lista De Datasets",
   col.names = TRUE,
   row.names = F,
@@ -205,16 +206,16 @@ names(lista.links) <-
   str_remove_all(names(lista.links), "value.") ##renomeando as colunas
 
 
-##Gravando em um xlsx (ESSE É O MESMO ARQUIVO ACIMA, APENAS EM UMA SHEET DIFERENTE)
+##Gravando em um xlsx
 
 write.xlsx(
   lista.links,
-  "PASTA ONDE O ARQUIVO SERÁ GRAVADO",
+  "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
   sheetName = "Lista De Links",
   col.names = TRUE,
   row.names = F,
   append = T,
-  showNA = TRUE,
+  showNA = F,
   password = NULL
 )
 
