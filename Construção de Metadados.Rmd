@@ -31,6 +31,7 @@ names(lista.datasets) <- "dataset"
 datasets <- data.frame()
 
 for (i in 1:nrow(lista.datasets)) {
+
   info <-
     fromJSON(readLines(
       paste(
@@ -152,6 +153,16 @@ for (i in 1:nrow(lista.datasets)) {
       "N/A"
     } else {
       links$url
+    })),
+    nome_link = t(data.frame(if (is.null(links$name)) {
+      "N/A"
+    } else {
+      links$name
+    })),
+    link_type = t(data.frame(if (is.null(links$resource_type)) {
+      "N/A"
+    } else {
+      links$resource_type
     })),
     stringsAsFactors = F,
     check.rows =  F
