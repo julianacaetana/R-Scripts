@@ -17,14 +17,11 @@ Esse Script tem como objetivo fazer uma extração dos datasets disponiveis no s
 
 ###Carregando as bibliotecas
 ```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
-library(RCurl)
-library(XML)
-library(dplyr)
-library(rvest)
-library(stringr)
-library(purrr)
-library(httr)
 library(rjson)
+library(dplyr)
+library(stringr)
+library(reshape2)
+
 ```
 
 
@@ -46,14 +43,6 @@ lista.datasets <- bind_cols(lista.datasets,
 
 ## Definição dos links
 
-
-### Mostrando informa??es sobre o data frame que armazena informa??es dos datases disponiveis
-
-```{r}
-dplyr::glimpse(lista.datasets)
-
-```
-
 ### Selecionando os datasets que não são séries temporais
 
 
@@ -65,7 +54,12 @@ rm(lista.datasets)
 
 ```
 
+
+
+
+
 ### Descobrindo links
+
 
 ```{r message=FALSE, warning=FALSE, paged.print=TRUE}
 lista.outros.links <- data.frame()
@@ -74,6 +68,8 @@ for (i in 1:nrow(lista.outros)) {
 
   temp <- #as.data.frame(
   fromJSON(readLines(paste("http://dadosabertos.bcb.gov.br/api/action/package_show?id=", lista.outros$dataset[i], sep = "") ))#$#)
+  
+  
   
 
 for(x in 1:length(temp$result$resources)){
@@ -96,7 +92,7 @@ lista.outros.links <- bind_rows(lista.outros.links,t)
 } }
 
 
-
+lista.outros.links <- inner_join(lista.outros.links,lista.links, by = c("nome" = "nome_link","formato" = "formato"))
 
 lista.outros.links <- filter(lista.outros.links,lista.outros.links$formato != 'HTML' & 
          lista.outros.links$formato != 'PDF' &
@@ -115,7 +111,8 @@ lista.outros.links.param <- filter(lista.outros.links,str_detect(lista.outros.li
 lista.outros.links <- anti_join(lista.outros.links,lista.outros.links.param)
 
 lista.outros.links$url <- str_replace_all(lista.outros.links$url,"aplicacao#!","odata")
-
+lista.outros.links <- lista.outros.links[,-6]
+lista.outros.links <- distinct(lista.outros.links)
 
 
 
@@ -126,19 +123,32 @@ lista.outros.links$url <- str_replace_all(lista.outros.links$url,"aplicacao#!","
 ##Baixando Datasets
 
 ```{r warning=FALSE}
+
+baixados <- data.frame( dataset = str_remove_all(list.files("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/"),".csv"))
+lista.outros.links <- anti_join(lista.outros.links,baixados, by= c("nome" = "dataset"))
+options(timeout = 99999999)
 for (i in 1:nrow(lista.outros.links)) {
   tryCatch({
   z <- data.frame()
 
-  if(lista.outros.links$formato[i] =="CSV"){
-    download.file(lista.outros.links$url[i],paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",lista.outros.links$nome[i],".csv",sep=""), mode = "wb")
+
+   if((str_detect(lista.outros.links$formato.x[i],c("CSV")) |
+     str_detect(lista.outros.links$formato.x[i],c("TXT")) )
+     & lista.outros.links$link_type[i] == "NULL" ){
+     
+    download.file(lista.outros.links$url[i],paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",lista.outros.links$nome[i],".",lista.outros.links$formato.x[i],sep=""), mode = "wb",method = "wininet")
   
+   }
+  if(lista.outros.links$link_type[i] == "api" ){
+    download.file(paste(lista.outros.links$url[i],"?$format=text/csv",sep=""),paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",lista.outros.links$nome[i],".CSV",sep=""), mode = "wb",method = "wininet")
   }
-  else{
-    
-    temp <-  fromJSON( readLines(lista.outros.links$url[i]))$value
-    
   
+  else {
+    
+   temp <-  #fromJSON(
+      readLines(lista.outros.links$url[i])#)$value
+
+  temp <-  fromJSON(temp)$value
   
  # dataset <-
   cat(lista.outros.links$nome[i], "\n")
@@ -161,61 +171,4 @@ write.csv(z,paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets
 ```
 
 
-
-###Verifica quais datasets não foram baixados
-
-```{r}
-baixados <- data.frame( dataset = str_remove_all(list.files("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/"),".csv"))
-faltantes <- anti_join(lista.outros.links,baixados, by= c("nome" = "dataset"))
-
-
-
-for (i in 1:nrow(faltantes)) {
-  tryCatch({
-  z <- data.frame()
-
-  if(faltantes$formato[i] =="CSV"){
-    download.file(faltantes$url[i],paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",faltantes$nome[i],".csv",sep=""), mode = "wb")
-  
-  }
-  else{
-    
-    temp <-  #fromJSON( 
-      readLines(faltantes$url[i])#)$value
-    
-  temp <-  fromJSON(temp)$value
-  
- # dataset <-
-  cat(faltantes$nome[i], "\n")
-
-
-for (y in 1:length(temp)) {
-
-    dftemp <- as.data.frame( t(unlist(temp[y])),stringsAsFactors=FALSE)
-z <- bind_rows(z,dftemp)
-  
-}
-
-#assign( dataset,z)
-write.csv(z,paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",faltantes$nome[i],".csv",sep=""))
-}
-
-}, error=function(e){cat("ERROR : ",conditionMessage(e), "\n", faltantes$url[i], "\n'")})
-}
-
-
-```
-
-
-
-###Importando os datasets
-
-
-## Visualizações
-
-```{r}
-
-
-
-```
 
