@@ -1,273 +1,235 @@
 ---
-title: "Scraping dadosabertos.bcb.gov.br"
-output: 
-  html_notebook: 
-    highlight: haddock
-    number_sections: yes
-    smart: no
-    toc: yes
-  html_document: 
-    number_sections: yes
-    smart: no
-    theme: spacelab
-    toc: yes
+title: "Metadados"
+output: html_notebook
 ---
 
-Esse Script tem como objetivo fazer uma extração dos datasets disponiveis no site de dados abertos do Banco Central Do Brasil.
+## Carregando as bibliotecas necessárias  
 
-###Carregando as bibliotecas
-```{r echo=TRUE, message=FALSE, warning=FALSE, paged.print=FALSE}
+```{r warning=FALSE}
 library(rjson)
 library(dplyr)
 library(stringr)
 library(reshape2)
-
+Sys.setenv(JAVA_HOME='C:/Program Files (x86)/Java/jre1.8.0_181') ##Tratando erro do java não encontrado
+library(xlsx)
 ```
 
 
-#  Definindo as fontes
-
-O passo abaixo define a url principal e a quantidade de p?ginas existentes. 
-Esse passo tem o objetivo de facilitar a buscar pelas urls.
-
 ```{r warning=FALSE}
+
 lista.datasets <-
   as.data.frame(fromJSON(
     readLines("http://dadosabertos.bcb.gov.br/api/action/package_list")
   )$result, stringsAsFactors = F)
 names(lista.datasets) <- "dataset"
-lista.datasets <- bind_cols(lista.datasets,
-                            data.frame(sgs = str_detect(lista.datasets$dataset, "[0-9]-")))
 
 ```
 
+##
 
+```{r warning=FALSE}
+datasets <- data.frame()
 
-### Selecionando os datasets que não são séries temporais
+for (i in 1:nrow(lista.datasets)) {
 
-
-```{r}
-
-
-lista.outros <-  filter(lista.datasets, lista.datasets$sgs == F)
-
-rm(lista.datasets)
-
-```
-
-
-### Descobrindo links
-
-
-```{r message=FALSE, warning=FALSE, paged.print=TRUE}
-lista.outros.links <- data.frame() ##dataframe principal
-
-for (i in 1:nrow(lista.outros)) {
-  cat(".", i)
-  
-  temp <- 
+  info <-
     fromJSON(readLines(
       paste(
         "http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
-        lista.outros$dataset[i],
+        lista.datasets$dataset[i],
         sep = ""
       )
-    )) ##recupera informações sobre o dataset
+    ))$result
+  resources <- info$resources
+  links = data.frame()
   
-  
-  
-  
-  for (x in 1:length(temp$result$resources)) {
-    t <- data.frame(
-      dataset = lista.outros$dataset[i],
-      nome = temp$result$resources[[x]]$name,
-      formato = temp$result$resources[[x]]$format,
-      url = temp$result$resources[[x]]$url,
-      
-      stringsAsFactors = FALSE
-    ) ##gera um dataframe com os links
+  for (x in 1:length(info$resources)) {
+    nomes <-
+      distinct(as.data.frame(names(resources[[x]]), stringsAsFactors = F))[, 1]
     
     
-    
-    
-    lista.outros.links <- bind_rows(lista.outros.links, t) #coloca os dados do dataset no dataframe principal
+    temp <-
+      data.frame(
+        matrix(
+          as.character(resources[[x]]),
+          nrow = 1,
+          byrow = T
+        ) ,
+        stringsAsFactors = FALSE,
+        check.rows = T,
+        check.names = T
+      )
+    names(temp) <- nomes
+    links <- bind_rows(links, temp)
     
   }
-}
-
-############### JOIN COM O METADADOS ###############
-lista.outros.links <-
-  inner_join(lista.outros.links,
-             lista.links,
-             by = c("nome" = "nome_link", "formato" = "formato")) ##fazendo join com os metadados para recuperar o link_type
-lista.outros.links <- lista.outros.links[, -6] ##remove o id dos links recuperados do metadados
-############### JOIN COM O METADADOS ###############
-
-lista.outros.links <-
-  filter(
-    lista.outros.links,
-    lista.outros.links$formato != 'HTML' &
-      lista.outros.links$formato != 'PDF' &
-      lista.outros.links$formato != 'OData' &
-      lista.outros.links$formato != 'API' &
-      lista.outros.links$nome != "Estatística das transferências para liquidação de documento com código de barras" ##filtrando este dataset pois nãoe está respondendo
-  ) ##filtrando links que não são úteis para extração
-
-lista.outros.links.param <-
-  filter(
-    lista.outros.links,
-    str_detect(lista.outros.links$url, c("cnpj=")) |
-      str_detect(lista.outros.links$url, c("mesAno=")) |
-      str_detect(lista.outros.links$url, c("data=")) |
-      str_detect(lista.outros.links$url, c("ano=")) |
-      str_detect(lista.outros.links$url, c("201608")) |
-      str_detect(lista.outros.links$url, c("TIPO")) |
-      str_detect(lista.outros.links$url, c("Cotacao")) |
-      lista.outros.links$nome == "Dados Cadastrais das Cooperativas Autorizadas"  |
-      lista.outros.links$nome == "Dados Cadastrais das Entidades Autorizadas"  |
-      lista.outros.links$dataset == "estatisticas-da-compensacao-de-cheques-compe" |
-      lista.outros.links$nome == "Registros por Mês" |
-      lista.outros.links$nome == "Lista Valores de Serviço Bancário" |
-      lista.outros.links$nome == "Lista Instituições de Grupo Consolidado" |
-      lista.outros.links$nome == "Lista Tarifas por Instituição Financeira" |
-      lista.outros.links$nome == "Lista Tarifa por Valores" |
-      lista.outros.links$nome == "Taxas de juros diária" |
-      lista.outros.links$nome == "Taxas de juros mensal"
-    
-  ) ##filtrando datasests que tem caracteristicas de parâmetro
-
-lista.outros.links <-
-  anti_join(lista.outros.links, lista.outros.links.param) ##separa os dataframes parametrizados dos demais
-
-lista.outros.links$url <-
-  str_replace_all(lista.outros.links$url, "aplicacao#!", "odata") ##prepara os links  para extração
-
-###Removendo datasets duplicados com exensão difrentes#####
-lista.outros.links <-
-  inner_join(
-    lista.outros.links,
-    aggregate((lista.outros.links$formato),
-              by = list(lista.outros.links$nome,
-                        lista.outros.links$dataset),
-              last
-    ),
-    c(
-      "dataset" = "Group.2",
-      "nome" = "Group.1",
-      "formato" = "x"
-    )
+  
+  
+  dataset <- data.frame(
+    dataset = info$title,
+    id = info$id,
+    dono = info$maintainer,
+    dono_email = if (is.null(info$maintainer_email)) {
+      "N/A"
+    } else {
+      info$maintainer_email
+    },
+    autor = if (is.null(info$author)) {
+      "N/A"
+    } else {
+      info$author
+    },
+    data_hora_criacao = if (is.null(info$metadata_created)) {
+      "N/A"
+    } else {
+      info$metadata_created
+    } ,
+    data_hora_atualizacao = if (is.null(info$metadata_modified)) {
+      "N/A"
+    } else {
+      info$metadata_modified
+    } ,
+    documentacao = if (is.null(info$documentacao)) {
+      "N/A"
+    } else {
+      info$documentacao
+    },
+    codigo_sgs = if (is.null(info$codigo_sgs)) {
+      "N/A"
+    } else {
+      info$codigo_sgs
+    } ,
+    status = if (is.null(info$state)) {
+      "N/A"
+    } else {
+      info$state
+    } ,
+    data_inicial = if (is.null(info$inicio_periodo)) {
+      "N/A"
+    } else {
+      info$inicio_periodo
+    } ,
+    data_final = if (is.null(info$fim_periodo)) {
+      "N/A"
+    } else {
+      info$fim_periodo
+    },
+    unidade_medida = if (is.null(info$unidade_medida)) {
+      "N/A"
+    } else {
+      info$unidade_medida
+    },
+    qtd_links = if (is.null(info$num_resources)) {
+      "N/A"
+    } else {
+      info$num_resources
+    },
+    periodicidade = if (is.null(info$periodicidade)) {
+      "N/A"
+    } else {
+      info$periodicidade
+    },
+    tipo_serie = if (is.null(info$tipo_serie)) {
+      "N/A"
+    } else {
+      info$tipo_serie
+    },
+    url = if (is.null(info$url)) {
+      "N/A"
+    } else {
+      info$url
+    },
+    descricao = t(data.frame(if (is.null(links$description)) {
+      "N/A"
+    } else {
+      links$description
+    })),
+    formato = t(data.frame(if (is.null(links$format)) {
+      "N/A"
+    } else {
+      links$format
+    })),
+    link = t(data.frame(if (is.null(links$url)) {
+      "N/A"
+    } else {
+      links$url
+    })),
+    nome_link = t(data.frame(if (is.null(links$name)) {
+      "N/A"
+    } else {
+      links$name
+    })),
+    link_type = t(data.frame(if (is.null(links$resource_type)) {
+      "N/A"
+    } else {
+      links$resource_type
+    })),
+    stringsAsFactors = F,
+    check.rows =  F
+    ,
+    row.names = ""
   )
-
-rm(lista.outros)
-```
-
-
-
-##Baixando Datasets sem parâmetros
-
-```{r message=FALSE, warning=FALSE}
-options(timeout = 99999999) ### 
-
-for (i in 1:nrow(lista.outros.links)) {
-  tryCatch({
-    z <- data.frame()
-    cat(lista.outros.links$nome[i], "\n")
-    
-    if (lista.outros.links$link_type[i] == "api" &
-        !str_detect(lista.outros.links$url[i], "format")) {
-      download.file(
-        URLencode(paste(lista.outros.links$url[i], "?$format=text/csv", sep = "")),
-        paste(
-          "D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
-          lista.outros.links$nome[i],
-          ".csv",
-          sep = ""
-        ),
-        mode = "wb",
-        method = "libcurl"
-      )
-      
-    } else{
-      download.file(
-        URLencode( lista.outros.links$url[i]),
-        paste(
-          "D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
-          lista.outros.links$nome[i],
-          ".",
-          lista.outros.links$formato[i],
-          sep = ""
-        ),
-        mode = "wb",
-        method = "libcurl"
-      )
-    }
-    
-  }, error = function(e) {
-    cat("ERROR : ", conditionMessage(e), "\n")
-  })
+  datasets <- bind_rows(datasets, dataset)
 }
-library(httr)
-library(jsonlite)
 
-url<-'https://www4.bcb.gov.br/fis/cosif/rest/buscar-instituicoes_app.asp#'
-flightdata<-GET(url)
-
-output<- content(flightdata, as="text") %>% fromJSON(flatten=FALSE)
-
-readLines("https://www4.bcb.gov.br/fis/cosif/rest/buscar-instituicoes.asp")
-rm(t,temp,z,i,x)
-
-```
+rm(dataset, info, resources, nomes, x, i, temp, links, lista.datasets) ##removendo variáveis que não serão utilizadas daqui pra frente
 
 
-##Baixando Datasets com parâmetros FASE DE ESTUDO
+lista.dataset <-
+  datasets[, 1:17]  ##dataset com informações gerais dos datasets
 
-```{r message=FALSE, warning=FALSE}
-options(timeout = 99999999) ### 
+write.xlsx(
+  lista.dataset,
+  "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
+  sheetName = "Lista De Datasets",
+  col.names = TRUE,
+  row.names = F,
+  append = F,
+  showNA = F,
+  password = NULL
+) ###Gravando em um xlsx
 
-for (i in 1:nrow(lista.outros.links.param)) {
-  
-  database <- "200001"
-  
-  tryCatch({
-    z <- data.frame()
-    cat(lista.outros.links$nome[i], "\n")
-    
-    if (lista.outros.links.param$dataset[14:15] == "ifs-balancetes") {
-      
-      str_replace_all(lista.outros.links.param$url[14:15],c("DATA","201608"),database)
-       str_replace_all(lista.outros.links.param$url[14:15],c("TIPO"),database)
-      # download.file(
-      #   URLencode(lista.outros.links$url[i],
-      #   paste(
-      #     "D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
-      #     lista.outros.links$nome[i],
-      #     ".zip",
-      #     sep = ""
-      #   ),
-      #   mode = "wb",
-      #   method = "libcurl"
-      # ))
-      
-    } else{
-      download.file(
-        URLencode( lista.outros.links$url[i]),
-        paste(
-          "D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
-          lista.outros.links$nome[i],
-          ".",
-          lista.outros.links$formato[i],
-          sep = ""
-        ),
-        mode = "wb",
-        method = "libcurl"
-      )
-    }
-    
-  }, error = function(e) {
-    cat("ERROR : ", conditionMessage(e), "\n")
-  })
-}
+####### lista com informações dos links disponiveis para cada dataset #######
+
+lista.links <-
+  datasets[, c(2, 18:length(datasets))] ##seleciona os campos
+
+
+lista.links <-
+  melt(lista.links, id.var = c("id")) ## transforma as colunas em linhas
+
+
+lista.links <-
+  bind_cols(lista.links, id_link =  str_extract(lista.links$variable, "[0-9]+"))
+
+lista.links$variable <-
+  str_remove(lista.links$variable, ".[0-9]+") ##padroniza as variáveis
+lista.links <- reshape(
+  lista.links,
+  timevar = "variable"
+  ,
+  idvar = c("id", "id_link")
+  ,
+  direction = "wide"
+) ###separa as variaveis em colunas
+
+names(lista.links) <-
+  str_remove_all(names(lista.links), "value.") ##renomeando as colunas
+
+
+##Gravando em um xlsx
+
+write.xlsx(
+  lista.links,
+  "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
+  sheetName = "Lista De Links",
+  col.names = TRUE,
+  row.names = F,
+  append = T,
+  showNA = F
+)
+rm(datasets,lista.dataset)
+
 
 ```
 
