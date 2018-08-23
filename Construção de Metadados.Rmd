@@ -31,7 +31,7 @@ names(lista.datasets) <- "dataset"
 datasets <- data.frame()
 
 for (i in 1:nrow(lista.datasets)) {
-
+  
   info <-
     fromJSON(readLines(
       paste(
@@ -178,16 +178,16 @@ rm(dataset, info, resources, nomes, x, i, temp, links, lista.datasets) ##removen
 lista.dataset <-
   datasets[, 1:17]  ##dataset com informações gerais dos datasets
 
-write.xlsx(
-  lista.dataset,
-  "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
-  sheetName = "Lista De Datasets",
-  col.names = TRUE,
-  row.names = F,
-  append = F,
-  showNA = F,
-  password = NULL
-) ###Gravando em um xlsx
+# write.xlsx(
+#   lista.dataset,
+#   "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
+#   sheetName = "Lista De Datasets",
+#   col.names = TRUE,
+#   row.names = F,
+#   append = F,
+#   showNA = F,
+#   password = NULL
+# ) ###Gravando em um xlsx
 
 ####### lista com informações dos links disponiveis para cada dataset #######
 
@@ -219,15 +219,15 @@ names(lista.links) <-
 
 ##Gravando em um xlsx
 
-write.xlsx(
-  lista.links,
-  "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
-  sheetName = "Lista De Links",
-  col.names = TRUE,
-  row.names = F,
-  append = T,
-  showNA = F
-)
+# write.xlsx(
+#   lista.links,
+#   "D:/Pós Graduação/Projeto Aplicado/Scraping/datasets.xlsx",
+#   sheetName = "Lista De Links",
+#   col.names = TRUE,
+#   row.names = F,
+#   append = T,
+#   showNA = F
+# )
 rm(datasets,lista.dataset)
 
 
