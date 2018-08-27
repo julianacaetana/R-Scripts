@@ -1,5 +1,5 @@
 ---
-title: "<center><big>Scraping</big><br /><small>dadosabertos.bcb.gov.br</small></center>"
+title: "Scraping dadosabertos.bcb.gov.br"
 output: 
   html_notebook: 
     highlight: haddock
@@ -31,144 +31,401 @@ O passo abaixo define a url principal e a quantidade de p?ginas existentes.
 Esse passo tem o objetivo de facilitar a buscar pelas urls.
 
 ```{r warning=FALSE}
-lista.datasets <- as.data.frame( fromJSON(readLines("http://dadosabertos.bcb.gov.br/api/action/package_list"))$result, stringsAsFactors = F)
+lista.datasets <-
+  as.data.frame(fromJSON(
+    readLines("http://dadosabertos.bcb.gov.br/api/action/package_list")
+  )$result, stringsAsFactors = F)
 names(lista.datasets) <- "dataset"
-lista.datasets <- bind_cols(lista.datasets, 
-                         data.frame(sgs = str_detect(lista.datasets$dataset,"[0-9]-"))
-                         
-                         )
+lista.datasets <- bind_cols(lista.datasets,
+                            data.frame(sgs = str_detect(lista.datasets$dataset, "[0-9]-")))
 
 ```
 
 
-## Definição dos links
 
 ### Selecionando os datasets que não são séries temporais
 
 
 ```{r}
 
-lista.outros <-  filter(lista.datasets,lista.datasets$sgs == F)
+
+lista.outros <-  filter(lista.datasets, lista.datasets$sgs == F)
 
 rm(lista.datasets)
 
 ```
 
 
-
-
-
 ### Descobrindo links
 
 
 ```{r message=FALSE, warning=FALSE, paged.print=TRUE}
-lista.outros.links <- data.frame()
+lista.outros.links <- data.frame() ##dataframe principal
+
 for (i in 1:nrow(lista.outros)) {
-      cat(".",i)
-
-  temp <- #as.data.frame(
-  fromJSON(readLines(paste("http://dadosabertos.bcb.gov.br/api/action/package_show?id=", lista.outros$dataset[i], sep = "") ))#$#)
+  cat(".", i)
+  
+  temp <- 
+    fromJSON(readLines(
+      paste(
+        "http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
+        lista.outros$dataset[i],
+        sep = ""
+      )
+    )) ##recupera informações sobre o dataset
   
   
   
-
-for(x in 1:length(temp$result$resources)){
-
-
- t <- data.frame(
-             dataset = lista.outros$dataset[i],
-             nome = temp$result$resources[[x]]$name,
-             formato = temp$result$resources[[x]]$format,
-             url = temp$result$resources[[x]]$url,
-             
-             stringsAsFactors=FALSE
-             )
   
+  for (x in 1:length(temp$result$resources)) {
+    t <- data.frame(
+      dataset = lista.outros$dataset[i],
+      nome = temp$result$resources[[x]]$name,
+      formato = temp$result$resources[[x]]$format,
+      url = temp$result$resources[[x]]$url,
+      
+      stringsAsFactors = FALSE
+    ) ##gera um dataframe com os links
+    
+    
+    
+    
+    lista.outros.links <- bind_rows(lista.outros.links, t) #coloca os dados do dataset no dataframe principal
+    
+  }
+}
 
- 
-  
-lista.outros.links <- bind_rows(lista.outros.links,t)
+############### JOIN COM O METADADOS ###############
+lista.outros.links <-
+  inner_join(lista.outros.links,
+             lista.links,
+             by = c("nome" = "nome_link", "formato" = "formato")) ##fazendo join com os metadados para recuperar o link_type
+lista.outros.links <- lista.outros.links[, -6] ##remove o id dos links recuperados do metadados
+############### JOIN COM O METADADOS ###############
 
-} }
+lista.outros.links <-
+  filter(
+    lista.outros.links,
+    lista.outros.links$formato != 'HTML' &
+      lista.outros.links$formato != 'PDF' &
+      lista.outros.links$formato != 'OData' &
+      lista.outros.links$formato != 'API' &
+      lista.outros.links$nome != "Estatística das transferências para liquidação de documento com código de barras" ##filtrando este dataset pois nãoe está respondendo
+  ) ##filtrando links que não são úteis para extração
 
+lista.outros.links.param <-
+  filter(
+    lista.outros.links,
+    str_detect(lista.outros.links$url, c("cnpj=")) |
+      str_detect(lista.outros.links$url, c("mesAno=")) |
+      str_detect(lista.outros.links$url, c("data=")) |
+      str_detect(lista.outros.links$url, c("ano=")) |
+      str_detect(lista.outros.links$url, c("201608")) |
+      str_detect(lista.outros.links$url, c("TIPO")) |
+      str_detect(lista.outros.links$url, c("Cotacao")) |
+      lista.outros.links$nome == "Dados Cadastrais das Cooperativas Autorizadas"  |
+      lista.outros.links$nome == "Dados Cadastrais das Entidades Autorizadas"  |
+      lista.outros.links$dataset == "estatisticas-da-compensacao-de-cheques-compe" |
+      lista.outros.links$nome == "Registros por Mês" |
+      lista.outros.links$nome == "Lista Valores de Serviço Bancário" |
+      lista.outros.links$nome == "Lista Instituições de Grupo Consolidado" |
+      lista.outros.links$nome == "Lista Tarifas por Instituição Financeira" |
+      lista.outros.links$nome == "Lista Tarifa por Valores" |
+      lista.outros.links$nome == "Taxas de juros diária" |
+      lista.outros.links$nome == "Taxas de juros mensal" |
+      lista.outros.links$nome == "Taxas de juros - Diário" |
+      lista.outros.links$nome == "Taxas de juros - Mensal" 
+    
+  ) ##filtrando datasests que tem caracteristicas de parâmetro
 
-lista.outros.links <- inner_join(lista.outros.links,lista.links, by = c("nome" = "nome_link","formato" = "formato"))
+lista.outros.links <-
+  anti_join(lista.outros.links, lista.outros.links.param) ##separa os dataframes parametrizados dos demais
 
-lista.outros.links <- filter(lista.outros.links,lista.outros.links$formato != 'HTML' & 
-         lista.outros.links$formato != 'PDF' &
-         lista.outros.links$formato != 'OData' &
-         lista.outros.links$formato != 'API' )
+lista.outros.links$url <-
+  str_replace_all(lista.outros.links$url, "aplicacao#!", "odata") ##prepara os links  para extração
 
-lista.outros.links.param <- filter(lista.outros.links,str_detect(lista.outros.links$url,c("cnpj=")) |
-         str_detect(lista.outros.links$url,c("mesAno=")) |
-         str_detect(lista.outros.links$url,c("data=")) |
-         str_detect(lista.outros.links$url,c("ano=")) |
-         str_detect(lista.outros.links$url,c("201608")) |
-         str_detect(lista.outros.links$url,c("TIPO")) |
-         str_detect(lista.outros.links$url,c("Cotacao")) 
-       )
+###Removendo datasets duplicados com exensão difrentes#####
+lista.outros.links <-
+  inner_join(
+    lista.outros.links,
+    aggregate((lista.outros.links$formato),
+              by = list(lista.outros.links$nome,
+                        lista.outros.links$dataset),
+              last
+    ),
+    c(
+      "dataset" = "Group.2",
+      "nome" = "Group.1",
+      "formato" = "x"
+    )
+  )
 
-lista.outros.links <- anti_join(lista.outros.links,lista.outros.links.param)
-
-lista.outros.links$url <- str_replace_all(lista.outros.links$url,"aplicacao#!","odata")
-lista.outros.links <- lista.outros.links[,-6]
-lista.outros.links <- distinct(lista.outros.links)
-
-
-
+rm(lista.outros)
 ```
 
 
 
-##Baixando Datasets
+##Baixando Datasets sem parâmetros
 
-```{r warning=FALSE}
-
-baixados <- data.frame( dataset = str_remove_all(list.files("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/"),".csv"))
-lista.outros.links <- anti_join(lista.outros.links,baixados, by= c("nome" = "dataset"))
-options(timeout = 99999999)
+```{r message=FALSE, warning=FALSE}
+options(timeout = 99999999) ### 
+i=91
 for (i in 1:nrow(lista.outros.links)) {
   tryCatch({
-  z <- data.frame()
-
-
-   if((str_detect(lista.outros.links$formato.x[i],c("CSV")) |
-     str_detect(lista.outros.links$formato.x[i],c("TXT")) )
-     & lista.outros.links$link_type[i] == "NULL" ){
-     
-    download.file(lista.outros.links$url[i],paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",lista.outros.links$nome[i],".",lista.outros.links$formato.x[i],sep=""), mode = "wb",method = "wininet")
-  
-   }
-  if(lista.outros.links$link_type[i] == "api" ){
-    download.file(paste(lista.outros.links$url[i],"?$format=text/csv",sep=""),paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",lista.outros.links$nome[i],".CSV",sep=""), mode = "wb",method = "wininet")
-  }
-  
-  else {
+    z <- data.frame()
+    cat(lista.outros.links$nome[i], "\n")
     
-   temp <-  #fromJSON(
-      readLines(lista.outros.links$url[i])#)$value
+    if (lista.outros.links$link_type[i] == "api" &
+        !str_detect(lista.outros.links$url[i], "format")) {
+      download.file(
+        URLencode(paste(lista.outros.links$url[i], "?$format=text/csv", sep = "")),
+        paste(
+          "E:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
+          lista.outros.links$nome[i],
+          ".csv",
+          sep = ""
+        ),
+        mode = "wb",
+        method = "libcurl"
+      )
+      
+    } else{
+      download.file(
+        URLencode( lista.outros.links$url[i]),
+        paste(
+          "E:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
+          lista.outros.links$nome[i],
+          ".",
+          lista.outros.links$formato[i],
+          sep = ""
+        ),
+        mode = "wb",
+        method = "libcurl"
+      )
+    }
+    
+  }, error = function(e) {
+    cat("ERROR : ", conditionMessage(e), "\n")
+  })
+}
+library(httr)
+library(jsonlite)
 
-  temp <-  fromJSON(temp)$value
+# url<-'https://www4.bcb.gov.br/fis/cosif/rest/buscar-instituicoes_app.asp#'
+# flightdata<-GET(url)
+# 
+# output<- content(flightdata, as="text") %>% fromJSON(flatten=FALSE)
+# 
+# readLines("https://www4.bcb.gov.br/fis/cosif/rest/buscar-instituicoes.asp")
+rm(t,temp,z,i,x)
+
+```
+
+```{r}
+download_outros <- function(link,nome,extensao) {
   
- # dataset <-
-  cat(lista.outros.links$nome[i], "\n")
+  download.file(
+   URLencode(link),
+   paste(
+     "E:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
+     nome,
+     extensao,
+     sep = ""
+   ),
+   mode = "wb",
+   method = "libcurl" )
+  return(nome)
+  }
+```
 
+##Dados Cadastrais de entidades  supervisionadas
 
-for (y in 1:length(temp)) {
-
-    dftemp <- as.data.frame( t(unlist(temp[y])),stringsAsFactors=FALSE)
-z <- bind_rows(z,dftemp)
+```{r}
+options(timeout = 99999999) ### 
+database <- format(Sys.Date(),"%m-%d-%Y")
+tryCatch({
+  for (i in 1:nrow(lista.outros.links.param)) {
   
+
+ if (lista.outros.links.param$dataset[i] == "dados-cadastrais-de-entidades-autorizadas") {
+      
+   for (y in 1:length(database)) {
+        
+       
+      if(lista.outros.links.param$nome[i] == "Dados Cadastrais das Cooperativas Autorizadas"){
+        url <- paste("https://olinda.bcb.gov.br/olinda/servico/BcBase/versao/v1/odata/Cooperativas(dataBase=@dataBase)?@dataBase='",database[y],"'&$format=text/csv",sep = "")
+       
+      }
+     if(lista.outros.links.param$nome[i] == "Dados Cadastrais das Entidades Autorizadas"){
+        url <- paste("https://olinda.bcb.gov.br/olinda/servico/BcBase/versao/v1/odata/EntidadesSupervisionadas(dataBase=@dataBase)?@dataBase='",database[y],"'&$format=text/csv",sep = "")
+        
+      }
+       download_outros(url,lista.outros.links.param$nome[i],".csv")   
+        }
+      }
+ }
+}, error = function(e) {
+    cat("ERROR : ", conditionMessage(e), "\n")
+  })
+```
+
+##Pré Balancetes - Lista de IFs
+
+```{r}
+require(rvest)
+ur <- "https://www3.bcb.gov.br/informes/rest/cadastros"
+instituicoes <- fromJSON(readLines("https://www3.bcb.gov.br/informes/rest/cadastros"))
+cad <- instituicoes$cadastros
+df.cad <- data.frame()
+
+for (i in 1:length(cad)) {
+  t <- as.data.frame( t(cad[[i]]))
+  df.cad <- bind_rows(df.cad,t)
 }
 
-#assign( dataset,z)
-write.csv(z,paste("D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",lista.outros.links$nome[i],".csv",sep=""))
+seg <- instituicoes$segmentos
+df.seg <- data.frame()
+
+for (i in 1:length(seg)) {
+  t <- as.data.frame( t(seg[[i]]))
+  df.seg <- bind_rows(df.seg,t)
 }
 
-}, error=function(e){cat("ERROR : ",conditionMessage(e), "\n", lista.outros.links$url[i], "\n'")})
+claCoop <- instituicoes$classesCooperativa
+df.claCoop <- data.frame()
+
+for (i in 1:length(claCoop)) {
+  t <- as.data.frame( t(claCoop[[i]]))
+  df.claCoop <- bind_rows(df.claCoop,t)
 }
+
+
+mun <- instituicoes$municipios
+df.mun <- data.frame()
+
+for (i in 1:length(mun)) {
+  t <- as.data.frame( t(mun[[i]]))
+  df.mun <- bind_rows(df.mun,t)
+}
+
+pai <- instituicoes$paises
+df.pai <- data.frame()
+
+for (i in 1:length(pai)) {
+  t <- as.data.frame( t(pai[[i]]))
+  df.pai <- bind_rows(df.pai,t)
+}
+
+write.csv()
+
 
 ```
 
 
+
+
+
+###Download Balancetes
+
+```{r message=FALSE, warning=FALSE}
+options(timeout = 99999999) ###
+database <-
+  format(seq.Date(Sys.Date() - 10 * 365, Sys.Date(), by = "month"), "%Y%m")
+
+  for (i in 1:nrow(lista.outros.links.param)) {
+    
+      if (lista.outros.links.param$dataset[i] == "ifs-balancetes") {
+        
+        for (y in 1:length(database)) {
+        # if(lista.outros.links.param$nome[i] == "Balancetes (Transferência de arquivos CSV)"){
+        #   urlb <- str_replace_all(lista.outros.links.param$url[i],c("201608"),database[y])
+        #
+        #   tipo <- c("bancos","cooperativas","consorcios","sociedades","conglomerados","liquidacao")
+        #
+        #   for (x in 1:length(tipo)) {
+        #     url <- str_replace_all(str_replace_all(urlb,c("bancos"),tipo[x]),"BANCOS",tipo[x])
+        #     nome <- paste(lista.outros.links.param$nome[i],database[y],tipo[x],sep = " - ")
+        #     download_outros(url,nome,".zip")
+        #   }
+        # }
+        
+        
+        if (lista.outros.links.param$nome[i] == "Consolidado Financeiro Individualizado") {
+          urlb <- str_replace_all(str_replace_all(
+            lista.outros.links.param$url[i],
+            c("DATA"),
+            c(database[y])
+          ),
+          "TIPO",
+          "4040")
+          tryCatch({
+            for (z in 3:nrow(df.cad)) {
+              ARQUIVO <- paste(database[y], "-4040-", df.cad$id[z], ".ZIP", sep = "")
+              url <- str_replace_all(urlb, c("ARQUIVO.ZIP"), ARQUIVO)
+              nome <-
+                paste(lista.outros.links.param$nome[i],
+                      database[y],
+                      "4040",
+                      df.cad$id[z],
+                      sep = "-")
+              download_outros(url, nome, ".zip")
+            }}
+, error = function(e) {
+  cat("ERROR : ", conditionMessage(e), "\n")
+})
+          
+          
+        }
+      }
+    }
+  }
+
+      
+```
+
+##Baixando Datasets com parâmetros FASE DE ESTUDO
+
+```{r message=FALSE, warning=FALSE}
+options(timeout = 99999999) ### 
+database <- format(seq.Date(Sys.Date() - 10*365,Sys.Date(),by = "month"),"%Y%m")
+for (i in 1:nrow(lista.outros.links.param)) {
+  
+ # tryCatch({
+    z <- data.frame()
+    cat(lista.outros.links$nome[i], "\n")
+    
+   
+      # download.file(
+      #   URLencode(lista.outros.links$url[i],
+      #   paste(
+      #     "D:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
+      #     lista.outros.links$nome[i],
+      #     ".zip",
+      #     sep = ""
+      #   ),
+      #   mode = "wb",
+      #   method = "libcurl"
+      # ))
+      
+    } else{
+      download.file(
+        URLencode( lista.outros.links$url[i]),
+        paste(
+          "E:/Pós Graduação/Projeto Aplicado/Scraping/Outros Datasets/",
+          lista.outros.links$nome[i],
+          ".",
+          lista.outros.links$formato[i],
+          sep = ""
+        ),
+        mode = "wb",
+        method = "libcurl"
+      )
+    }
+    
+  }, error = function(e) {
+    cat("ERROR : ", conditionMessage(e), "\n")
+  })
+}
+
+```
 
