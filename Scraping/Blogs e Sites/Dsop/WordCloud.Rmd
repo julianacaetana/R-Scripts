@@ -1,0 +1,21 @@
+---
+title: "R Notebook"
+output: html_notebook
+---
+
+
+
+```{r}
+set.seed(1234)
+wordcloud(words = d$word, freq = d$freq, min.freq = 1,
+          max.words=10, random.order=F, rot.per=0.35, 
+          colors=c(brewer.pal(8, "Accent"),"gray"))
+```
+
+```{r}
+barplot(d[1:10,]$freq, las = 2, names.arg = d[1:10,]$word,
+        col ="lightblue", main ="Most frequent words",
+        ylab = "Word frequencies")
+
+```
+
