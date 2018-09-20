@@ -164,8 +164,8 @@ lista.dataset <-
 setwd("D:/Pós Graduação/Projeto Aplicado/Scraping")
 
 
-saida <- toJSON(lista.dataset)
-write.table(saida,"lista_dataset.json")
+#saida <- toJSON(lista.dataset)
+write.table(lista.dataset,"lista_dataset.txt",sep = "|")
 
 ####### lista com informaÃ§Ãµes dos links disponiveis para cada dataset #######
 
@@ -194,8 +194,6 @@ lista.links <- reshape(
 names(lista.links) <-
   str_remove_all(names(lista.links), "value.") ##renomeando as colunas
 
-saida <- toJSON(lista.links)
-write.table(saida,"lista_links.json")
 
-
-rm(datasets,lista.dataset)
+write.table(lista.dataset,"lista_links.txt",sep = "|")
+##rm(datasets,lista.dataset)
