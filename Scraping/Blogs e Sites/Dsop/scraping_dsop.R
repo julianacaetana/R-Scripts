@@ -46,6 +46,6 @@ for (x in 1:10) {
 
 dsop.noticias <- filter(dsop.noticias,dsop.noticias$categoria_principal == "Notícias para você")
 
-##setwd("D:/Pós Graduação/Projeto Aplicado/Scraping/Blogs e Sites/Dsop")
-write.csv(dsop.noticias, "dsop_noticias_top10_paginas.csv")
+setwd("D:/Pós Graduação/Projeto Aplicado/Scraping/Blogs e Sites/Dsop")
+write.csv(dsop.noticias, "dsop_noticias_top10_paginas.csv",row.names = F)
 
