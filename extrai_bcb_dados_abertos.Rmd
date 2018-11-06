@@ -21,7 +21,9 @@ library(rjson)
 library(dplyr)
 library(stringr)
 library(reshape2)
-
+library(data.table)
+library(XML)
+library(rvest)
 ```
 
 
@@ -38,22 +40,9 @@ lista.datasets <-
 names(lista.datasets) <- "dataset"
 lista.datasets <- bind_cols(lista.datasets,
                             data.frame(sgs = str_detect(lista.datasets$dataset, "[0-9]-")))
-
+lista.datasets <- filter(lista.datasets, lista.datasets$sgs == F)
 ```
 
-
-
-### Selecionando os datasets que não são séries temporais
-
-
-```{r}
-
-
-lista.outros <-  filter(lista.datasets, lista.datasets$sgs == F)
-
-rm(lista.datasets)
-
-```
 
 
 ### Descobrindo links
@@ -62,14 +51,14 @@ rm(lista.datasets)
 ```{r message=FALSE, warning=FALSE, paged.print=TRUE}
 lista.outros.links <- data.frame() ##dataframe principal
 
-for (i in 1:nrow(lista.outros)) {
+for (i in 1:nrow(lista.datasets)) {
   cat(".", i)
   
   temp <- 
     fromJSON(readLines(
       paste(
         "http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
-        lista.outros$dataset[i],
+        lista.datasets$dataset[i],
         sep = ""
       )
     )) ##recupera informações sobre o dataset
@@ -79,7 +68,7 @@ for (i in 1:nrow(lista.outros)) {
   
   for (x in 1:length(temp$result$resources)) {
     t <- data.frame(
-      dataset = lista.outros$dataset[i],
+      dataset = lista.datasets$dataset[i],
       nome = temp$result$resources[[x]]$name,
       formato = temp$result$resources[[x]]$format,
       url = temp$result$resources[[x]]$url,
@@ -88,31 +77,120 @@ for (i in 1:nrow(lista.outros)) {
     ) ##gera um dataframe com os links
     
     
-    
-    
     lista.outros.links <- bind_rows(lista.outros.links, t) #coloca os dados do dataset no dataframe principal
     
   }
 }
 
-############### JOIN COM O METADADOS ###############
-lista.outros.links <-
-  inner_join(lista.outros.links,
-             lista.links,
-             by = c("nome" = "nome_link", "formato" = "formato")) ##fazendo join com os metadados para recuperar o link_type
-lista.outros.links <- lista.outros.links[, -6] ##remove o id dos links recuperados do metadados
-############### JOIN COM O METADADOS ###############
+
+if(lista.outros.links$url %like% "olinda.bcb.gov.br/olinda/servico" & lista.outros.links$url %like%  "aplicacao#!" ){
+  lista.outros.links$url<- str_replace(lista.outros.links$url,"aplicacao#!","odata")
+}
+
+
 
 lista.outros.links <-
   filter(
     lista.outros.links,
-    lista.outros.links$formato != 'HTML' &
-      lista.outros.links$formato != 'PDF' &
-      lista.outros.links$formato != 'OData' &
-      lista.outros.links$formato != 'API' &
-      lista.outros.links$nome != "Estatística das transferências para liquidação de documento com código de barras" ##filtrando este dataset pois nãoe está respondendo
-  ) ##filtrando links que não são úteis para extração
+    lista.outros.links$nome != 'API - Documentação Swagger' &
+      lista.outros.links$nome != 'API - Navegador de Dados' &
+      lista.outros.links$nome != 'API - Endpoint OData' &
+      lista.outros.links$nome != 'Documentação'  &
+      lista.outros.links$formato != 'HTML'
+  ) 
 
+if(lista.outros.links$dataset == "ifs-balancetes"){
+  if( lista.outros.links$nome == "Balancete Patrimonial Individualizado" ){
+    dow <- as.data.frame(getHTMLLinks(readLines(dow$link)))
+    names(dow) <- "link"
+    dow <- filter(dow, dow$link %like% "cont/")
+    dow <- bind_cols(dow, readHTMLTable(readLines(dow$link), encoding="UTF-8")) 
+   
+    
+    for (i in 1:nrow(dow)) {
+      download.file(paste("https://www4.bcb.gov.br/fis/cosif/",dow$link[i], sep =""), paste(dow$Segmento[i],"ZIP", sep="."))
+    }
+  }
+  
+   if( lista.outros.links$nome == "Balancetes (Transferência de arquivos CSV)" ){
+     
+     temp <-  html("https://www4.bcb.gov.br/fis/cosif/balancetes.asp")
+     dow <-
+     as.data.frame(html_attr(html_nodes(temp, xpath = '//*[@id="Bancos"]/option'), "value"))
+     names(dow) <- "link"
+     Cooperativas <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Cooperativas"]/option'),
+     "value"
+     ))
+     names(Cooperativas) <- "link"
+     dow <- bind_rows(dow, Cooperativas)
+     Consorcios <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Consorcios"]/option'),
+     "value"
+     ))
+     names(Consorcios) <- "link"
+     dow <- bind_rows(dow, Consorcios)
+     Sociedades <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Sociedades"]/option'),
+     "value"
+     ))
+     names(Sociedades) <- "link"
+     dow <- bind_rows(dow, Sociedades)
+     Conglomerados <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Conglomerados"]/option'),
+     "value"
+     ))
+     names(Conglomerados) <- "link"
+     dow <- bind_rows(dow, Conglomerados)
+     
+     Conglomerados <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Conglomerados"]/option'),
+     "value"
+     ))
+     names(Conglomerados) <- "link"
+     dow <- bind_rows(dow, Conglomerados)
+     
+     Prudencial <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Prudencial"]/option'),
+     "value"
+     ))
+     names(Prudencial) <- "link"
+     dow <- bind_rows(dow, Prudencial)
+     
+     Combinados <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Combinados"]/option'),
+     "value"
+     ))
+     names(Combinados) <- "link"
+     dow <- bind_rows(dow, Combinados)
+     Liquidacao <-
+     as.data.frame(html_attr(
+     html_nodes(temp, xpath = '//*[@id="Liquidacao"]/option'),
+     "value"
+     ))
+     names(Liquidacao) <- "link"
+     dow <- bind_rows(dow, Liquidacao)
+
+   
+   
+   
+   
+   
+      download.file(paste("https://www4.bcb.gov.br/fis/cosif/",dow$link[i], sep =""), paste(dow$Segmento[i],"ZIP", sep="."))
+    
+  }
+  
+  
+}
+
+##filtrando links que não são úteis para extração
 lista.outros.links.param <-
   filter(
     lista.outros.links,
@@ -137,13 +215,10 @@ lista.outros.links.param <-
       lista.outros.links$nome == "Taxas de juros - Mensal" 
     
   ) ##filtrando datasests que tem caracteristicas de parâmetro
-
 lista.outros.links <-
   anti_join(lista.outros.links, lista.outros.links.param) ##separa os dataframes parametrizados dos demais
-
 lista.outros.links$url <-
   str_replace_all(lista.outros.links$url, "aplicacao#!", "odata") ##prepara os links  para extração
-
 ###Removendo datasets duplicados com exensão difrentes#####
 lista.outros.links <-
   inner_join(
@@ -159,7 +234,6 @@ lista.outros.links <-
       "formato" = "x"
     )
   )
-
 rm(lista.outros)
 ```
 
@@ -210,7 +284,6 @@ for (i in 1:nrow(lista.outros.links)) {
 }
 library(httr)
 library(jsonlite)
-
 # url<-'https://www4.bcb.gov.br/fis/cosif/rest/buscar-instituicoes_app.asp#'
 # flightdata<-GET(url)
 # 
@@ -218,7 +291,6 @@ library(jsonlite)
 # 
 # readLines("https://www4.bcb.gov.br/fis/cosif/rest/buscar-instituicoes.asp")
 rm(t,temp,z,i,x)
-
 ```
 
 ```{r}
@@ -246,7 +318,6 @@ database <- format(Sys.Date(),"%m-%d-%Y")
 tryCatch({
   for (i in 1:nrow(lista.outros.links.param)) {
   
-
  if (lista.outros.links.param$dataset[i] == "dados-cadastrais-de-entidades-autorizadas") {
       
    for (y in 1:length(database)) {
@@ -277,48 +348,35 @@ ur <- "https://www3.bcb.gov.br/informes/rest/cadastros"
 instituicoes <- fromJSON(readLines("https://www3.bcb.gov.br/informes/rest/cadastros"))
 cad <- instituicoes$cadastros
 df.cad <- data.frame()
-
 for (i in 1:length(cad)) {
   t <- as.data.frame( t(cad[[i]]))
   df.cad <- bind_rows(df.cad,t)
 }
-
 seg <- instituicoes$segmentos
 df.seg <- data.frame()
-
 for (i in 1:length(seg)) {
   t <- as.data.frame( t(seg[[i]]))
   df.seg <- bind_rows(df.seg,t)
 }
-
 claCoop <- instituicoes$classesCooperativa
 df.claCoop <- data.frame()
-
 for (i in 1:length(claCoop)) {
   t <- as.data.frame( t(claCoop[[i]]))
   df.claCoop <- bind_rows(df.claCoop,t)
 }
-
-
 mun <- instituicoes$municipios
 df.mun <- data.frame()
-
 for (i in 1:length(mun)) {
   t <- as.data.frame( t(mun[[i]]))
   df.mun <- bind_rows(df.mun,t)
 }
-
 pai <- instituicoes$paises
 df.pai <- data.frame()
-
 for (i in 1:length(pai)) {
   t <- as.data.frame( t(pai[[i]]))
   df.pai <- bind_rows(df.pai,t)
 }
-
 write.csv()
-
-
 ```
 
 
@@ -331,7 +389,6 @@ write.csv()
 options(timeout = 99999999) ###
 database <-
   format(seq.Date(Sys.Date() - 10 * 365, Sys.Date(), by = "month"), "%Y%m")
-
   for (i in 1:nrow(lista.outros.links.param)) {
     
       if (lista.outros.links.param$dataset[i] == "ifs-balancetes") {
@@ -379,7 +436,6 @@ database <-
       }
     }
   }
-
       
 ```
 
@@ -426,6 +482,4 @@ for (i in 1:nrow(lista.outros.links.param)) {
     cat("ERROR : ", conditionMessage(e), "\n")
   })
 }
-
 ```
-
