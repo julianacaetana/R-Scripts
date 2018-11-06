@@ -11,6 +11,7 @@ library("wordcloud")
 library("RColorBrewer")
 library("stringr")
 library("dplyr")
+library(tidyr)
 
 setwd("D:/Pós Graduação/Projeto Aplicado/Scraping/Dados Abertos BC/IndiceDatasets")
 
@@ -60,7 +61,9 @@ for (i in 1:nrow(lista.dataset)) {
 
 
 
-write.csv(lista.dataset, "lista_dataset_classificada.csv",row.names = F)
+lista_dataset_classificada <- separate_rows(lista.dataset,categoria_principal,sep=",")
+
+write.csv(lista_dataset_classificada, "lista_dataset_classificada.csv",row.names = F)
 
 
 
