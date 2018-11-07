@@ -87,6 +87,16 @@ if(lista.outros.links$url %like% "olinda.bcb.gov.br/olinda/servico" & lista.outr
   lista.outros.links$url<- str_replace(lista.outros.links$url,"aplicacao#!","odata")
 }
 
+download.file("https://www3.bcb.gov.br/informes/rest/cadastros", "cadastroGeral.json")
+cadastro <- fromJSON(readLines("https://www3.bcb.gov.br/informes/rest/cadastros"))
+
+cadastro.instituicoes <- data.frame() 
+for (i in 1:length( cadastro$cadastros)) {
+  cadastro.instituicoes  <- bind_rows(cadastro.instituicoes,
+  data.frame(cnpj = as.character(substr( paste("00000000", cadastro$cadastros[[i]]$id, sep = ""),9,16)),
+             nome = cadastro$cadastros[[i]]$n))
+}
+
 
 
 lista.outros.links <-
@@ -181,9 +191,12 @@ if(lista.outros.links$dataset == "ifs-balancetes"){
    
    
    
+   for (i in 1:nrow(dow)) {
+     arquivo <- str_split(dow$link[i],  "/")[[1]][length(str_split(dow$link[i],  "/")[[1]])]
+      download.file(paste("https://www4.bcb.gov.br",dow$link[i], sep =""), arquivo)
+   }
    
-   
-      download.file(paste("https://www4.bcb.gov.br/fis/cosif/",dow$link[i], sep =""), paste(dow$Segmento[i],"ZIP", sep="."))
+     
     
   }
   
