@@ -1,6 +1,6 @@
 
 
-ifs_balancetes_cnpj <- function (cnpj,data){
+ifs_balancetes_cnpj <- function(cnpj) {
   
   data <- paste(year(rollback(Sys.Date())),month(rollback(Sys.Date())),sep="")
   data <-  Sys.Date() - months(0:2)
@@ -9,14 +9,15 @@ ifs_balancetes_cnpj <- function (cnpj,data){
   url <- "http://www4.bcb.gov.br/fis/cosif/cont/balan/individualizados/DATA/TIPO/ARQUIVO.ZIP"
   
   PREFIXO = "http://www4.bcb.gov.br/fis/cosif/cont/balan/individualizados"
-  DATA = data
+  DATA = database
   TIPO = "4040" 
   CNPJ = cnpj
   ARQUIVO.ZIP = paste(DATA, "-", TIPO, "-", CNPJ, ".ZIP", sep = "")
   
   
-  download.file(paste(PREFIXO,DATA,TIPO,ARQUIVO.ZIP, sep ="/"), ARQUIVO.ZIP)
-  
+ download.file(paste(PREFIXO,DATA,TIPO,ARQUIVO.ZIP, sep ="/"), ARQUIVO.ZIP)
+
+ return("Ok")
   
   
 }
@@ -123,8 +124,8 @@ if(lista.outros.links$dataset[i] == "ifs-balancetes"){
 
     if(lista.outros.links$nome[i] == "Consolidado Financeiro Individualizado"){
       
-      for (i in 1:nrow(cadastro.instituicoes)) {
-        tryCatch({ifs_balancetes_cnpj(cadastro.instituicoes$cnpjCentral[i],database)},error = function(e) {
+      for (i in 1:nrow(instituicoes)) {
+        tryCatch({ifs_balancetes_cnpj(instituicoes$cnpj[i])},error = function(e) {
           cat("ERROR : ", conditionMessage(e), "\n")
         })
         
