@@ -1,4 +1,4 @@
-
+#### Balancetes ####
 
 ifs_balancetes_cnpj <- function(cnpj) {
   
@@ -24,7 +24,7 @@ ifs_balancetes_cnpj <- function(cnpj) {
 
 
 
-for (i in nrow(lista.outros.links)) {
+for (i in 1:nrow(lista.outros.links)) {
   
 
 
@@ -36,8 +36,8 @@ if(lista.outros.links$dataset[i] == "ifs-balancetes"){
     dow <- bind_cols(dow, readHTMLTable(readLines("http://www4.bcb.gov.br/fis/cosif/cosif.asp"), encoding="UTF-8")) 
     
     
-    for (i in 1:nrow(dow)) {
-      download.file(paste("https://www4.bcb.gov.br/fis/cosif/",dow$link[i], sep =""), paste(dow$Segmento[i],"ZIP", sep="."))
+    for (x in 1:nrow(dow)) {
+      download.file(paste("https://www4.bcb.gov.br/fis/cosif/",dow$link[x], sep =""), paste(dow$Segmento[x],"ZIP", sep="."))
     }
   }
   
@@ -110,9 +110,9 @@ if(lista.outros.links$dataset[i] == "ifs-balancetes"){
     
     
     
-    for (i in 1:nrow(dow)) {
-      arquivo <- str_split(dow$link[i],  "/")[[1]][length(str_split(dow$link[i],  "/")[[1]])]
-      download.file(paste("https://www4.bcb.gov.br",dow$link[i], sep =""), arquivo)
+    for (y in 1:nrow(dow)) {
+      arquivo <- str_split(dow$link[y],  "/")[[1]][length(str_split(dow$link[y],  "/")[[1]])]
+      download.file(paste("https://www4.bcb.gov.br",dow$link[y], sep =""), arquivo)
     }
     
     rm(Combinados, Conglomerados, Cooperativas, Liquidacao, Sociedades, Prudencial, Consorcios, temp, dow)
@@ -124,8 +124,8 @@ if(lista.outros.links$dataset[i] == "ifs-balancetes"){
 
     if(lista.outros.links$nome[i] == "Consolidado Financeiro Individualizado"){
       
-      for (i in 1:nrow(instituicoes)) {
-        tryCatch({ifs_balancetes_cnpj(instituicoes$cnpj[i])},error = function(e) {
+      for (z in 1:nrow(conglomerados)) {
+        tryCatch({ifs_balancetes_cnpj(conglomerados$cnpj[z])},error = function(e) {
           cat("ERROR : ", conditionMessage(e), "\n")
         })
         
