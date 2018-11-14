@@ -1,66 +1,208 @@
-
-# install.packages("tm")  
-# install.packages("SnowballC") 
-# install.packages("wordcloud")  
-# install.packages("RColorBrewer") 
-
-
-library("tm")
-library("SnowballC")
-library("wordcloud")
-library("RColorBrewer")
-library("stringr")
-library("dplyr")
-
-setwd("D:/Pós Graduação/Projeto Aplicado/Scraping/Dados Abertos BC/IndiceDatasets")
-
-lista.dataset <-
-
-  read.table("D:/Pós Graduação/Projeto Aplicado/Scraping/Dados Abertos BC/IndiceDatasets/lista_dataset.txt",
-             header = T,sep = "|",quote = "\"")
+library(rjson)
+library(dplyr)
+library(stringr)
+library(reshape2)
+library(textreadr)
 
 
+lista.datasets <-
+  as.data.frame(fromJSON(
+    readLines("http://dadosabertos.bcb.gov.br/api/action/package_list")
+  )$result, stringsAsFactors = F)
+names(lista.datasets) <- "dataset"
 
+datasets <- data.frame()
 
-for (i in 1:nrow(lista.dataset)) {
+for (i in 1:nrow(lista.datasets)) {
 
-  text <- c(toString(lista.dataset$notas[i]),toString(lista.dataset$dataset[i]))
-  text <- remove_acentos(text)
-  docs <- Corpus(VectorSource(text))
+  info <-
+    fromJSON(readLines(
+      paste(
+        "http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
+        lista.datasets$dataset[i],
+        sep = ""
+      )
+    ))$result
+  resources <- info$resources
   
-  # toSpace <- content_transformer(function (x , pattern ) gsub(pattern, " ", x))
-  # docs <- tm_map(docs, toSpace, "/")
-  # docs <- tm_map(docs, toSpace, "@")
-  # docs <- tm_map(docs, toSpace, "\\|")
-  inspect(docs)
+   if (str_detect(info$notes,"<")) {
+     description <- toString(read_html( info$notes))
+   } else{
+     description <- toString(info$notes)
+  } 
+  links = data.frame()
   
-  docs <- tm_map(docs, content_transformer(tolower))
-  docs <- tm_map(docs, removeNumbers)
-  docs <- tm_map(docs, removeWords, stopwords("pt-br"))
-  docs <- tm_map(docs, removeWords, c("… leia","nao","alem","banco","central")) 
-  docs <- tm_map(docs, removePunctuation)
-  docs <- tm_map(docs, stripWhitespace)
-  docs <- tm_map(docs, stemDocument)
+  for (x in 1:length(info$resources)) {
+    
+    nomes <-
+      distinct(as.data.frame(names(resources[[x]]), stringsAsFactors = F))[, 1]
+    
+    
+    temp <-
+      data.frame(
+        matrix(
+          as.character(resources[[x]]),
+          nrow = 1,
+          byrow = T
+        ) ,
+        stringsAsFactors = FALSE,
+        check.rows = T,
+        check.names = T
+      )
+    names(temp) <- nomes
+    links <- bind_rows(links, temp)
+    
+  }
   
   
-  dtm <- TermDocumentMatrix(docs)
-  m <- as.matrix(dtm)
-  v <- sort(rowSums(m),decreasing=TRUE)
-  d <- data.frame(word = names(v),freq=v)
-  
-
-  
-  keywords <-  toString( top_n(d,5,d$freq)$word )
-  
-  lista.dataset$categoria_principal[i] <- keywords
-  
-  inspect(docs)
-  
+  dataset <- data.frame(
+    dataset = info$title,
+    id = info$id,
+    dono = info$maintainer,
+    dono_email = if (is.null(info$maintainer_email)) {
+      "N/A"
+    } else {
+      info$maintainer_email
+    },
+    autor = if (is.null(info$author)) {
+      "N/A"
+    } else {
+      info$author
+    },
+    data_hora_criacao = if (is.null(info$metadata_created)) {
+      "N/A"
+    } else {
+      info$metadata_created
+    } ,
+    data_hora_atualizacao = if (is.null(info$metadata_modified)) {
+      "N/A"
+    } else {
+      info$metadata_modified
+    } ,
+    documentacao = if (is.null(info$documentacao)) {
+      "N/A"
+    } else {
+      info$documentacao
+    },
+    codigo_sgs = if (is.null(info$codigo_sgs)) {
+      "N/A"
+    } else {
+      info$codigo_sgs
+    } ,
+    status = if (is.null(info$state)) {
+      "N/A"
+    } else {
+      info$state
+    } ,
+    data_inicial = if (is.null(info$inicio_periodo)) {
+      "N/A"
+    } else {
+      info$inicio_periodo
+    } ,
+    data_final = if (is.null(info$fim_periodo)) {
+      "N/A"
+    } else {
+      info$fim_periodo
+    },
+    unidade_medida = if (is.null(info$unidade_medida)) {
+      "N/A"
+    } else {
+      info$unidade_medida
+    },
+    qtd_links = if (is.null(info$num_resources)) {
+      "N/A"
+    } else {
+      info$num_resources
+    },
+    periodicidade = if (is.null(info$periodicidade)) {
+      "N/A"
+    } else {
+      info$periodicidade
+    },
+    tipo_serie = if (is.null(info$tipo_serie)) {
+      "N/A"
+    } else {
+      info$tipo_serie
+    },
+    url = if (is.null(info$url)) {
+      "N/A"
+    } else {
+      info$url
+    },
+    notas = str_replace_all(description, "[\r\n]" , "") ,
+    descricao = t(data.frame(if (is.null(links$description)) {
+      "N/A"
+    } else {
+      links$description
+    })),
+    formato = t(data.frame(if (is.null(links$format)) {
+      "N/A"
+    } else {
+      links$format
+    })),
+    link = t(data.frame(if (is.null(links$url)) {
+      "N/A"
+    } else {
+      links$url
+    })),
+    nome_link = t(data.frame(if (is.null(links$name)) {
+      "N/A"
+    } else {
+      links$name
+    })),
+    link_type = t(data.frame(if (is.null(links$resource_type)) {
+      "N/A"
+    } else {
+      links$resource_type
+    })),
+    stringsAsFactors = F,
+    check.rows =  F
+    ,
+    row.names = ""
+  )
+  datasets <- bind_rows(datasets, dataset)
 }
 
+rm(dataset, info, resources, nomes, x, i, temp, links, lista.datasets) ##removendo variÃ¡veis que nÃ£o serÃ£o utilizadas daqui pra frente
 
 
-write.csv(lista.dataset, "lista_dataset_classificada.csv",row.names = F)
+lista.dataset <-
+  datasets[, 1:18]  ##dataset com informaÃ§Ãµes gerais dos datasets
+
+##setwd("E:/Pós Graduação/Projeto Aplicado/Scraping")
+setwd("D:/Pós Graduação/Projeto Aplicado/Scraping/Dados Abertos BC/IndiceDatasets")
 
 
+#saida <- toJSON(lista.dataset)
+write.table(lista.dataset,"lista_dataset.txt",sep = "|",row.names = F)
 
+####### lista com informaÃ§Ãµes dos links disponiveis para cada dataset #######
+
+lista.links <-
+  datasets[, c(2, 19:length(datasets))] ##seleciona os campos
+
+
+lista.links <-
+  melt(lista.links, id.var = c("id")) ## transforma as colunas em linhas
+
+
+lista.links <-
+  bind_cols(lista.links, id_link =  str_extract(lista.links$variable, "[0-9]+"))
+
+lista.links$variable <-
+  str_remove(lista.links$variable, ".[0-9]+") ##padroniza as variÃ¡veis
+lista.links <- reshape(
+  lista.links,
+  timevar = "variable"
+  ,
+  idvar = c("id", "id_link")
+  ,
+  direction = "wide"
+) ###separa as variaveis em colunas
+
+names(lista.links) <-
+  str_remove_all(names(lista.links), "value.") ##renomeando as colunas
+
+
+write.table(lista.dataset,"lista_links.txt",sep = "|",row.names = F)
+##rm(datasets,lista.dataset)
