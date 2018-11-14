@@ -88,31 +88,21 @@ if(lista.outros.links$url %like% "olinda.bcb.gov.br/olinda/servico" & lista.outr
 }
 
 download.file("https://www3.bcb.gov.br/informes/rest/cadastros", "cadastroGeral.json")
-cadastro <- fromJSON(readLines("https://www3.bcb.gov.br/informes/rest/cadastros"))
+conglomerado <- fromJSON(readLines("https://www3.bcb.gov.br/informes/rest/cadastros/conglomerado"))
 
-cadastro.instituicoes <- data.frame() 
-for (i in 1:length( cadastro$cadastros)) {
-  cadastro.instituicoes  <- bind_rows(cadastro.instituicoes,
-  data.frame(cnpj = str_pad(as.character(cadastro$cadastros[[i]]$id),8,"left",'0'),
-             nome = cadastro$cadastros[[i]]$n,
-             fcnpj =   if(is.null(cadastro$cadastros[[i]]$f$cnpj )) "N/A"  else str_pad(as.character(cadastro$cadastros[[i]]$f$cnpj),8,"left",'0') 
-  
+conglomerados <- data.frame() 
+for (i in 1:length( conglomerado)) {
+  conglomerados  <- bind_rows(conglomerados,
+  data.frame(
+             cnpj = paste('C',str_pad(as.character(cadastro[[i]]$codigo),7,"left",'0'),sep=""),
+             nome = cadastro[[i]]$nome
  ,stringsAsFactors = F )
   )
 }
 
-library(lubridate)
-data <- paste(year(rollback(Sys.Date())),month(rollback(Sys.Date())),sep="")
-data <-  Sys.Date() - months(0:2)
-database <- paste(year(rollback(data[3])),str_pad( month(rollback(data[3])),2,"left",'0'),sep="")
-
-for (i in 1:nrow(cadastro.instituicoes)) {
- tryCatch({ifs_balancetes_cnpj(cadastro.instituicoes$cnpj[i],database)},error = function(e) {
-    cat("ERROR : ", conditionMessage(e), "\n")
-  })
   
-}
 
+ifs_balancetes_cnpj("00000000",database)
 
 
 lista.outros.links <-
