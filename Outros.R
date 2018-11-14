@@ -1,4 +1,3 @@
-
 ######Carregando as bibliotecas#######
 
 library(rjson)
@@ -10,7 +9,11 @@ library(XML)
 library(rvest)
 library(lubridate)
 
+
+##### Define o workspace####
+
 setwd("D:/Pós Graduação/Projeto Aplicado/Scraping/Dados Abertos BC/Outros Datasets")
+
 
 #######  Definindo as fontes ########
 
@@ -25,17 +28,14 @@ lista.datasets <- filter(lista.datasets, lista.datasets$sgs == F)
 
 
 
-###### Descobrindo links ######
-
-
-
+###### Descobrindo links #######
 
 lista.outros.links <- data.frame() ##dataframe principal
 
 for (i in 1:nrow(lista.datasets)) {
   cat(".", i)
   
-  temp <- 
+  temp <-
     fromJSON(readLines(
       paste(
         "http://dadosabertos.bcb.gov.br/api/action/package_show?id=",
@@ -49,6 +49,7 @@ for (i in 1:nrow(lista.datasets)) {
   
   for (x in 1:length(temp$result$resources)) {
     t <- data.frame(
+      title = temp$result$title[x],
       dataset = lista.datasets$dataset[i],
       nome = temp$result$resources[[x]]$name,
       formato = temp$result$resources[[x]]$format,
@@ -58,10 +59,13 @@ for (i in 1:nrow(lista.datasets)) {
     ) ##gera um dataframe com os links
     
     
-    lista.outros.links <- bind_rows(lista.outros.links, t) #coloca os dados do dataset no dataframe principal
+    lista.outros.links <-
+      bind_rows(lista.outros.links, t) #coloca os dados do dataset no dataframe principal
     
   }
 }
+
+##### Remove links inúteis #####
 
 lista.outros.links <-
   filter(
@@ -71,45 +75,68 @@ lista.outros.links <-
       lista.outros.links$nome != 'API - Endpoint OData' &
       lista.outros.links$nome != 'Documentação'  &
       lista.outros.links$formato != 'HTML'
-  ) 
+  )
+
+
+##### Altera a url para odata #####
 
 for (i in 1:nrow(lista.outros.links)) {
-  if(lista.outros.links$url %like% "olinda.bcb.gov.br/olinda/servico" & lista.outros.links$url %like%  "aplicacao#!" ){
-    lista.outros.links$url<- str_replace(lista.outros.links$url,"aplicacao#!","odata")
+  if (lista.outros.links$url[i] %like% "olinda.bcb.gov.br/olinda/servico" &
+      lista.outros.links$url %like%  "aplicacao#!") {
+    lista.outros.links$url <-
+      str_replace(lista.outros.links$url, "aplicacao#!", "odata")
   }
 }
+
+##### Dados cadastrais de entidades autorizadas #####
+
+
+
 
 data <- format(Sys.Date(), "%m-%d-%Y")
 
-for (i in 1:nrow(lista.outros.links)) {
-  if(lista.outros.links$nome[i] == "Dados Cadastrais das Entidades Autorizadas" ){
-    #lista.outros.links$url[i] <- paste(lista.outros.links$url[i],"(dataBase=@dataBase)?@dataBase='",data,"'&$format=json",sep="")  
-    download.file(lista.outros.links$url[i], paste("Dados Cadastrais das Entidades Autorizadas", data, ".json"))
-    entidades <- fromJSON(readLines(lista.outros.links$url[i]))$value
-    
-    instituicoes <- data.frame()
-    for (i in 1:length( entidades)) {
-      instituicoes  <- 
-                      bind_rows(instituicoes,
-                      data.frame(
-                         cnpj = if(!is.null(entidades[[i]]$codigoCNPJ8)) str_pad(as.character(entidades[[i]]$codigoCNPJ8),8,"left",'0') else "N/A",
-                         nome = entidades[[i]]$nomeEntidadeInteresse,
-                         cnpj14 =if(is.null(entidades[[i]]$codigoCNPJ14 )) "N/A"
-            else str_pad(as.character(entidades[[i]]$codigoCNPJ14),14,"left",'0') 
-                         ,stringsAsFactors = F )
-      )
-    }
-    
-    
-  }
-  
+source("entidades_autorizadas.R")
+
+
+
+
+#### Balancetes ####
+
+#### Download Informações cadastrais de instituições ######
+
+download.file("https://www3.bcb.gov.br/informes/rest/cadastros",
+              "cadastroGeral.json")
+
+
+
+#####Configura o código do conglomerado para o formato necessário #####
+
+conglomerado <-
+  fromJSON(readLines(
+    "https://www3.bcb.gov.br/informes/rest/cadastros/conglomerado"
+  ))
+
+conglomerados <- data.frame()
+for (i in 1:length(conglomerado)) {
+  conglomerados  <- bind_rows(conglomerados,
+                              data.frame(
+                                cnpj = paste('C', str_pad(
+                                  as.character(cadastro[[i]]$codigo), 7, "left", '0'
+                                ), sep = ""),
+                                nome = cadastro[[i]]$nome
+                                ,
+                                stringsAsFactors = F
+                              ))
 }
 
-ifs_balancetes()
-##### Download dos arquivos ######
 
 
 
 source("ifs_balancetes.R")
+
+
+
+##### Agências de instituições supervisionadas pelo Bacen  #####
+
 
 
