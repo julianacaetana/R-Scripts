@@ -1,7 +1,11 @@
 ##### Dados cadastrais de entidades autorizadas #####
 
 for (i in 1:nrow(lista.outros.links)) {
-  if (lista.outros.links$nome[i] == "Dados Cadastrais das Entidades Autorizadas") {
+  
+  if (lista.outros.links$dataset[i] == "dados-cadastrais-de-entidades-autorizadas"){
+  
+  if (lista.outros.links$nome[i] == "Dados Cadastrais das Entidades Autorizadas" || lista.outros.links$nome[i] == "Dados Cadastrais das Cooperativas Autorizadas"  ) {
+   
     url <-
       paste(
         lista.outros.links$url[i],
@@ -11,7 +15,10 @@ for (i in 1:nrow(lista.outros.links)) {
         sep = ""
       )
     download.file(url,
-                  paste("Dados Cadastrais das Entidades Autorizadas", data, ".json"))
+                  paste(lista.outros.links$nome[i], data, ".json"))
+    
+    lista.outros.links$status[i] <- "OK"
+    
     entidades <-
       fromJSON(readLines(url))$value
     
@@ -37,6 +44,18 @@ for (i in 1:nrow(lista.outros.links)) {
     }
     
     
+   
+  }
+    else{
+      
+      download.file(lista.outros.links$url[i],
+                    paste(str_trim(lista.outros.links$nome[i]), ".json",sep = ""))
+      lista.outros.links$status[i] <- "OK"
+    }
+ 
+  
   }
   
-}
+  
+  }
+
